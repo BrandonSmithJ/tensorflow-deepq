@@ -5,7 +5,7 @@ import tensorflow as tf
 from collections import deque
 
 class DiscreteDeepQ(object):
-    def __init__(self, observation_size,
+    def __init__(self, observation_shape,
                        num_actions,
                        observation_to_actions,
                        optimizer,
@@ -26,8 +26,8 @@ class DiscreteDeepQ(object):
 
         Parameters
         -------
-        observation_size : int
-            length of the vector passed as observation
+        observation_shape : R^n
+            shape of the matrix passed as observation
         num_actions : int
             number of actions that the model can execute
         observation_to_actions: dali model
@@ -35,7 +35,7 @@ class DiscreteDeepQ(object):
             that can take in observation vector or a batch
             and returns scores (of unbounded values) for each
             action for each observation.
-            input shape:  [batch_size, observation_size]
+            input shape:  [batch_size] + observation_shape
             output shape: [batch_size, num_actions]
         optimizer: tf.solver.*
             optimizer for prediction error
@@ -76,7 +76,7 @@ class DiscreteDeepQ(object):
             writer to log metrics
         """
         # memorize arguments
-        self.observation_size          = observation_size
+        self.observation_shape         = observation_shape
         self.num_actions               = num_actions
 
         self.q_network                 = observation_to_actions
@@ -118,14 +118,14 @@ class DiscreteDeepQ(object):
 
         # FOR REGULAR ACTION SCORE COMPUTATION
         with tf.name_scope("taking_action"):
-            self.observation        = tf.placeholder(tf.float32, (None, self.observation_size), name="observation")
+            self.observation        = tf.placeholder(tf.float32, [None]+self.observation_shape, name="observation")
             self.action_scores      = tf.identity(self.q_network(self.observation), name="action_scores")
             tf.histogram_summary("action_scores", self.action_scores)
             self.predicted_actions  = tf.argmax(self.action_scores, dimension=1, name="predicted_actions")
 
         with tf.name_scope("estimating_future_rewards"):
             # FOR PREDICTING TARGET FUTURE REWARDS
-            self.next_observation          = tf.placeholder(tf.float32, (None, self.observation_size), name="next_observation")
+            self.next_observation          = tf.placeholder(tf.float32, [None]+self.observation_shape, name="next_observation")
             self.next_observation_mask     = tf.placeholder(tf.float32, (None,), name="next_observation_mask")
             self.next_action_scores        = tf.stop_gradient(self.target_q_network(self.next_observation))
             tf.histogram_summary("target_action_scores", self.next_action_scores)
@@ -180,7 +180,7 @@ class DiscreteDeepQ(object):
         if random.random() < exploration_p:
             return random.randint(0, self.num_actions - 1)
         else:
-            return self.s.run(self.predicted_actions, {self.observation: observation[np.newaxis,:]})[0]
+            return self.s.run(self.predicted_actions, {self.observation: observation})[0]
 
     def store(self, observation, action, reward, newobservation):
         """Store experience, where starting with observation and
@@ -208,8 +208,8 @@ class DiscreteDeepQ(object):
             samples   = [self.experience[i] for i in samples]
 
             # bach states
-            states         = np.empty((len(samples), self.observation_size))
-            newstates      = np.empty((len(samples), self.observation_size))
+            states         = np.empty([len(samples)]+self.observation_shape)
+            newstates      = np.empty([len(samples)]+self.observation_shape)
             action_mask    = np.zeros((len(samples), self.num_actions))
 
             newstates_mask = np.empty((len(samples),))

@@ -12,34 +12,37 @@ class DDQN(DiscreteDeepQ):
 
 	def create_variables(self):
 		self.target_network_update_rate = 1.0
-		with tf.variable_scope("evaluation_network"):
-			self.eval_q_network = self.q_network.copy(scope="evaluation_network")
 
 		self.target_network_update = []
 		self.prediction_error = []
 		self.train_op = []
 
-		self.observation        	= tf.placeholder(tf.float32, (None, self.observation_size), name="observation")
-		self.next_observation       = tf.placeholder(tf.float32, (None, self.observation_size), name="next_observation")
+		self.observation        	= tf.placeholder(tf.float32, [None]+self.observation_shape, name="observation")
+		self.next_observation       = tf.placeholder(tf.float32, [None]+self.observation_shape, name="next_observation")
 		self.next_observation_mask  = tf.placeholder(tf.float32, (None,), name="next_observation_mask")
 		self.rewards                = tf.placeholder(tf.float32, (None,), name="rewards")
 		self.action_mask            = tf.placeholder(tf.float32, (None, self.num_actions), name="action_mask")
 
+		self.q_network(self.observation)
+
+		with tf.variable_scope("evaluation_network"):
+			self.eval_q_network = self.q_network.copy(scope="evaluation_network")
+
 		# Update both policy & evaluation networks
-		for sc, q_network in [('evaluation',self.eval_q_network), ('policy', self.q_network)]:
-			with tf.variable_scope(sc) as scope:
-				target_q_network = self.q_network.copy(scope=sc)#+"_target_network")
+		for scope, q_network in [('evaluation',self.eval_q_network), ('policy', self.q_network)]:
+			with tf.variable_scope(scope):
+				target_q_network = self.q_network.copy(scope=scope+"_target_network")
 
 				# FOR REGULAR ACTION SCORE COMPUTATION
 				with tf.name_scope("taking_action"):
 					action_scores      = tf.identity(q_network(self.observation), name="action_scores")
-					tf.histogram_summary(sc + "action_scores", action_scores)
+					tf.histogram_summary(scope + "action_scores", action_scores)
 					self.predicted_actions  = tf.argmax(action_scores, dimension=1, name="predicted_actions")
 
 				with tf.name_scope("estimating_future_rewards"):
 					# FOR PREDICTING TARGET FUTURE REWARDS
 					next_action_scores 	= tf.stop_gradient(target_q_network(self.next_observation))
-					tf.histogram_summary(sc + "target_action_scores", next_action_scores)
+					tf.histogram_summary(scope + "target_action_scores", next_action_scores)
 					double_q_scores 	= tf.stop_gradient(self.eval_q_network(self.next_observation))
 					double_q_actions 	= tf.reshape(tf.reduce_max(double_q_scores, reduction_indices = [1,]), [-1,1])
 					double_q_onehot 	= tf.to_float(tf.equal(double_q_scores, double_q_actions))
@@ -52,7 +55,7 @@ class DDQN(DiscreteDeepQ):
 					masked_action_scores 		= tf.reduce_sum(action_scores * self.action_mask, reduction_indices=[1,])
 					temporal_diff             	= masked_action_scores - future_rewards
 					self.prediction_error.append( tf.reduce_mean(tf.square(temporal_diff)) )
-					tf.scalar_summary(sc + "prediction_error", self.prediction_error[-1])
+					tf.scalar_summary(scope + "prediction_error", self.prediction_error[-1])
 					gradients                   = self.optimizer.compute_gradients(self.prediction_error[-1])
 					
 					# Clip gradients
@@ -98,8 +101,8 @@ class DDQN(DiscreteDeepQ):
 			samples   = [self.experience[i] for i in samples]
 
 			# bach states
-			states         = np.empty((len(samples), self.observation_size))
-			newstates      = np.empty((len(samples), self.observation_size))
+			states         = np.empty([len(samples)]+self.observation_shape)
+			newstates      = np.empty([len(samples)]+self.observation_shape)
 			action_mask    = np.zeros((len(samples), self.num_actions))
 
 			newstates_mask = np.empty((len(samples),))
