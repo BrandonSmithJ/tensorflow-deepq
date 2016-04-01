@@ -1,4 +1,0 @@
--> Variable naming
--> Documentation
--> move to separate files
--> more interesting examples

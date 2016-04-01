@@ -168,8 +168,8 @@ class DiscreteDeepQ(object):
     def action(self, observation):
         """Given observation returns the action that should be chosen using
         DeepQ learning strategy. Does not backprop."""
-        assert len(observation.shape) == 1, \
-                "Action is performed based on single observation."
+        # assert len(observation.shape) == 1, \
+        #         "Action is performed based on single observation."
 
         self.actions_executed_so_far += 1
         exploration_p = self.linear_annealing(self.actions_executed_so_far,

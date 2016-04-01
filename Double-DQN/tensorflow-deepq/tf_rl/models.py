@@ -6,7 +6,7 @@ from .utils import base_name
 
 class Layer(object):
     def __init__(self, input_sizes, output_size, scope):
-        """Cretes a neural network layer."""
+        """Creates a neural network layer."""
         if type(input_sizes) != list:
             input_sizes = [input_sizes]
 
